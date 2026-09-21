@@ -2,7 +2,7 @@
 
 #start
 ```
-go run cmd/main.go --frontend-path www --openapi-key sk-025e29c7af1a429d8d1546bed0c6382a --openai-model deepseek-v4-flash --kv-store-master-url 192.168.60.146:2000 --kv-store-slave-url 192.168.60.147:2001
+go run cmd/main.go --frontend-path www --openapi-key sk-025exxx7af1a429d8d1546bed0c6382a --openai-model deepseek-v4-flash --kv-store-master-url 192.168.60.146:2000 --kv-store-slave-url 192.168.60.147:2001
 ```
 
 [English](https://github.com/Arvintian/chatgpt-web/blob/main/README_en.md)
