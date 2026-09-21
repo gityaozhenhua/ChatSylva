@@ -1,59 +1,60 @@
+#### 一、全量持久化测试QPS
 
-### TODO
-```
-1.前端采用左边栏描述历史对话的问题, 上下关联本次对话的所有信息 []
-2.把token和历史信息存储到数据库中
-3.最好把ip地址修改成环境变量
-4.实现一个返回流相应前端自动向下滑动的效果最好可关闭可打开的[V]
-5.前端打包好了如何放到后端一块启动,已经改成了前端放到nginx中启动[V]
-6.把本地存储到数据库中每次加载从数据库到redis中查询
-```
+优化红黑树遍历：从遍历整个红黑树到遍历链表。
 
-### 第二修改
-```
-1. 主从同步测试 [V]
-2. 名字修改前端web 为ChatSylva
-```
-
-
-### 第三次修改
-```
-1.增加本地关键词库,未采用grpc,通过测试关键词不能解决向量不匹配问题
-2.使用frpc导致流处理缓存到中间nginx中[X],目前不知道怎么弄?
-```
+| 100w数据测试1次SAVE命令QPS | 100w数据测试每10w条数据1次SAVE命令，共10次SAVE命令 | 100w数据测试每1w条数据1次SAVE命令，共100次SAVE命令 | 100w数据测试每1K条数据1次SAVE命令，共1000次SAVE命令 |
+| -------------------------- | -------------------------------------------------- | -------------------------------------------------- | --------------------------------------------------- |
+| 8005                       | 7944                                               | 7916                                               | 7984                                                |
 
 
 
+#### 二、增量持久化
 
-### init
-```
-docker rm -f kvstore chatgpt-go-backend chatgpt-web
-docker network create chat-network
-```
+| 测试功能                       | QPS  |
+| ------------------------------ | ---- |
+| 100w测试ECHO网络模型           | 8382 |
+| 100W数据量测试RSET的qps        | 8030 |
+| 100w 开启增量测试RSET的落盘qps | 7825 |
 
 
-### backend
 
-```
-export GOPROXY=https://goproxy.cn,direct
-CGO_ENABLED=0 GOOS=linux GOARCH=$GOARCH go build -o dist/server ./cmd/main.go
-docker rm -f chatgpt-go-backend 2>/dev/null
-docker build -t chatgpt-go-backend .
-docker run -d --name chatgpt-go-backend --network chat-network -p 7080:7080 --restart unless-stopped   chatgpt-go-backend:latest
-docker logs -f chatgpt-go-backend
-```
+#### 三、对比redis aof关闭和开启qps
 
-chatgpt-go-backend:latest 
+| 关闭AOF/开启AOF | 10w         | 20w         | 40w         | 60w         | 80w         |
+| --------------- | ----------- | ----------- | ----------- | ----------- | ----------- |
+| Redis           | 7780 / 2035 | 7479 / 1949 | 7658 / 1777 | 6418 / 1831 | 7894 / 2067 |
+| Kvstore -优化后 | 7843 / 7559 | 7799/7712   | 7862 / 7728 | 7645/7038   | 7629 / 7474 |
 
-### frontend
-```
-pnpm install
-pnpm run build-only
-docker build -t chatgpt-web-frontend .
-docker run -d -p 8080:80 --name chatgpt-web chatgpt-web-frontend
-```
 
-### 测试
-http://10.211.55.7:8080/
 
-# ChatSylva
+#### 四、批量处理
+
+测试批量处理的qps，对比redis的pipeline，对比10条，20条，40条，80条，160条的qps。用redis-benchmark测试
+
+| pipeline | 10条     | 20        | 40        | 80        | 160       |
+| -------- | -------- | --------- | --------- | --------- | --------- |
+| redis    | 53475.93 | 96153.84  | 163934.42 | 256410.25 | 312500.00 |
+| kvstore  | 71942.45 | 103092.78 | 172413.80 | 263157.91 | 387692.31 |
+
+
+
+#### 五、内存策略
+
+|            | 开始状态(虚拟/物理)   | 峰值状态(虚拟/物理)     | 结束状态(虚拟/物理)    |
+| ---------- | --------------------- | ----------------------- | ---------------------- |
+| 系统malloc | 26.25 MB  ｜ 6.08 MB  | 156.25 MB  \| 130.10 MB | 156.25 MB  \| 11.01 MB |
+| 内存池slab | 92.26MB ｜ 67.14MB    | 158.25MB｜ 129.30MB     | 158.25MB ｜ 69.68MB    |
+| jemalloc   | 26.26 MB   \| 6.08 MB | 156.26 MB  \| 130.11 MB | 156.26 MB  \| 11.27 MB |
+
+#### 六、主从同步性能
+
+- 实时数据同步：对比关闭主从同步，开启主从同步ebpf转发，开启主从同步网络转发的qps。
+
+- 已有数据同步：对比sendfile与rdma的传输速度，对比iperf3测试tcp的吞吐里。 独立做一个代码区别kvstore,测传
+
+实时数据同步：
+
+| 实时数据同步   | 10000 | 50000 | 100000 |
+| -------------- | ----- | ----- | ------ |
+| Kvstore (xdp)  | 6150  | 1171  | 592    |
+| Socket网络转发 | 7507  | 7404  | 7370   |
