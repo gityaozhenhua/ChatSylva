@@ -1,0 +1,12 @@
+serverAddr: 119.29.106.59
+serverPort: 39039
+auth:
+  token: 578b57bd255bbb22b65d23d6a3e03923
+proxies:
+  - name: ChatWeb
+    type: http
+    localIP: 127.0.0.1
+    localPort: 8000
+    customDomains:
+      - 3-bm.tunnel.0voice.com
+response_buffer_size: 0

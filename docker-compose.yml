@@ -1,0 +1,55 @@
+services:
+  chatgpt-frp:
+    build:
+      context: ./chatgpt-frp
+      dockerfile: Dockerfile
+    container_name: chat-frp
+    network_mode: host
+  chatgpt-go-backend:
+    build:
+      context: ./chatgpt-web-backend
+      dockerfile: Dockerfile
+    container_name: chat-backend
+    ports:
+      - "7080:7080"
+    networks:
+      - 0voice
+  chatgpt-web-frontend:
+    build:
+      context: ./chatgpt-web-frontend
+      dockerfile: Dockerfile
+    container_name: chat-frontend
+    ports:
+      - "8000:80"
+    networks:
+      - 0voice
+  embedding:
+    build:
+      context: ./chatgpt-embedding
+      dockerfile: Dockerfile
+    container_name: chat-embedding
+    ports:
+      - "8001:8001"
+    volumes:
+      - /home/appuser/.cache/huggingface/hub:/app/hf_cache
+    environment:
+      HUGGINGFACE_HUB_CACHE: "/app/hf_cache"
+      HF_ENDPOINT: "https://hf-mirror.com"
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+    networks:
+      - 0voice
+    restart: always
+
+networks:
+  0voice:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: 0voice
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
+          gateway: 172.18.0.1
+          aux_addresses:
+            h1: "172.18.0.2"
+            h2: "172.18.0.3"
